@@ -1,6 +1,6 @@
 # repoParaFTP
 
-Mantém cópia atualizada do repositório dentro do diretŕoio dado no servidor FTP desejado.
+Mantém cópia atualizada do repositório dentro do diretŕoio dado no servidor SFTP desejado.
 
 ## Setup
 * Para que o projeto seja executado corretamente, garante a instalação e configuração do `Python 3.8.x` e `pip` (como [nesse tutorial](https://python.org.br/instalacao-windows/)).
