@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 # Bibliotecas PyPIP
-import ftplib
+# import ftplib
 import git
 import os
 from time import sleep
 from signal import signal, SIGINT
+import paramiko
 # Arquivo local de parâmetros
 import PARAMS
 
@@ -14,12 +15,9 @@ BASE_GIT_URL = "https://github.com/"
 LOCAL_REPO_PATH = "./REPO/"
 # Variáveis auxiliares
 PASTA_REMOTA_ATUAL = ''
-server = ftplib.FTP
-ARQS_IGNORAR = [
-    'main.py',
-    'PARAMS.py',
-    '.git'
-]
+# server = ftplib.FTP
+transport = paramiko.Transport
+server = paramiko.SFTPClient
 
 
 def handleFimDePrograma(sig, frame):
@@ -27,34 +25,48 @@ def handleFimDePrograma(sig, frame):
     Fecha conexão com servidor e termina execução do programa
     """
     print("\n\nFechando servidor e terminando execução...")
-    server.close(server)
+    try:
+        server.close(server)
+        transport.close(transport)
+    except Exception:
+        pass
     exit(0)
 
 
-def cdRemoto(server: ftplib.FTP,
+def cdRemoto(server: paramiko.SFTPClient,
              path: str) -> None:
-    server.cwd(path)
-    PASTA_REMOTA_ATUAL = server.pwd()
+    # server.cwd(path)
+    server.chdir(path)
+    # PASTA_REMOTA_ATUAL = server.pwd()
+    PASTA_REMOTA_ATUAL = server.getcwd()
 
 
-def testaConexao(server: ftplib.FTP) -> None:
+def testaConexao(server: paramiko.SFTPClient) -> None:
     """
     Teste conexão FTP e loga novamente se necessário
     """
     try:
         # Teste de conexão
-        server.getwelcome()
+        server.getcwd()
     except Exception:
         # Reconecta e reloga
-        server.connect(PARAMS.IP_SERVIDOR, port=22)
-        server.login(user=PARAMS.LOGIN_SERVIDOR,
-                     passwd=PARAMS.SENHA_SERVIDOR)
+        transport = paramiko.Transport(
+            (PARAMS.IP_SERVIDOR, PARAMS.PORTA_SERVIDOR)
+        )
+        transport.connect(None,
+                          username=PARAMS.LOGIN_SERVIDOR,
+                          assword=PARAMS.SENHA_SERVIDOR)
+        # server = paramiko.SFTPClient.from_transport(transport)
+        # server.connect(PARAMS.IP_SERVIDOR, port=22)
+        # server.login(user=PARAMS.LOGIN_SERVIDOR,
+        #              passwd=PARAMS.SENHA_SERVIDOR)
         # Volta para última localização conhecida no servidor
         server.cwd(PASTA_REMOTA_ATUAL)
+        server.chdir(PASTA_REMOTA_ATUAL)
 
 
 def carregaDiferencas(repo: git.Repo,
-                      server: ftplib.FTP) -> bool:
+                      server: paramiko.SFTPClient) -> bool:
     testaConexao(server)
 
     # Pega última versão do repositório
@@ -70,7 +82,7 @@ def carregaDiferencas(repo: git.Repo,
         testaConexao(server)
 
         # Confere arquivo válido
-        if len(diff) <= 0 or diff in ARQS_IGNORAR:
+        if len(diff) <= 0 or diff in PARAMS.ARQS_IGNORAR:
             continue
 
         # Exibe arquivo a ser atualizado e salva seu path
@@ -82,31 +94,35 @@ def carregaDiferencas(repo: git.Repo,
         for i in range(0, len(pathComps) - 1):
             # Tenta criar subdiretório
             try:
-                server.mkd(pathComps[i])
+                # server.mkd(pathComps[i])
+                server.mkdir(pathComps[i])
             # Único erro válido na criação como pasta já existente
-            except Exception as e:
-                if str(e).split()[0] != '550':
-                    print("Erro na criação de pasta!")
-                    print(e)
-                    exit(1)
+            except Exception:
+                pass
+                # if str(e).split()[0] != '550':
+                #     print("Erro na criação de pasta!")
+                #     print(e)
+                #     exit(1)
             # "Caminha" pelos subdiretórios
             cdRemoto(server, pathComps[i])
 
         # Caso arquivo exista, alteração foi modificação não remoção, assim
         # tranfere novo arquivo/versão
         if os.path.exists(pathArq):
-            with open(pathArq, "rb") as arq:
-                server.storbinary("STOR " + pathComps[-1], arq)
+            # with open(pathArq, "rb") as arq:
+            #   server.storbinary("STOR " + pathComps[-1], arq)
+            server.put(pathArq, pathComps[-1])
         # Caso contrário, deleta arquivo
         else:
-            server.delete(pathComps[-1])
+            # server.delete(pathComps[-1])
+            server.remove(pathComps[-1])
 
         # Volta para diretório base
         for i in range(0, len(pathComps) - 1):
             cdRemoto(server, '..')
 
 
-def copiaPastaFTP(server: ftplib.FTP,
+def copiaPastaFTP(server: paramiko.SFTPClient,
                   folder: str) -> bool:
     """
     Copia pasta inteira recursivamente para servidor
@@ -116,20 +132,22 @@ def copiaPastaFTP(server: ftplib.FTP,
 
     # Para cada entrada no diretório atual
     for entry in os.listdir("./" + folder):
-        # Confere que arquivo não seja hidden
-        if entry in ARQS_IGNORAR:
+        # Confere que arquivo não deve ser ignorado
+        if entry in PARAMS.ARQS_IGNORAR:
             continue
         # Caso seja diretório
         if os.path.isdir(folder + entry):
             # Tenta criar diretório no servidor
             try:
-                server.mkd(entry)
+                # server.mkd(entry)
+                server.mkdir(entry)
             # Apenas aceita erro caso já criado
-            except Exception as e:
-                if str(e).split()[0] != '550':
-                    print("Erro na criação de pasta!")
-                    print(e)
-                    exit(1)
+            except Exception:
+                pass
+                # if str(e).split()[0] != '550':
+                #     print("Erro na criação de pasta!")
+                #     print(e)
+                #     exit(1)
             # Entra na pasta criada
             cdRemoto(server, entry)
             # Chama recursivamente para entradas do novo diretório
@@ -140,27 +158,37 @@ def copiaPastaFTP(server: ftplib.FTP,
         else:
             # Escreve arquivo para servidor
             pathArq = folder + entry
-            with open(pathArq, "rb") as arq:
-                server.storbinary("STOR " + entry, arq)
+            server.put(pathArq, entry)
+            # with open(pathArq, "rb") as arq:
+            #     server.storbinary("STOR " + entry, arq)
 
 
 def main():
-    # Cria e testa conecão FTP
+    # Cria e testa conecão SFTP
     try:
-        server = ftplib.FTP()
-        server.connect(PARAMS.IP_SERVIDOR, port=22)
-        server.login(user=PARAMS.LOGIN_SERVIDOR,
-                     passwd=PARAMS.SENHA_SERVIDOR)
-    except Exception:
+        transport = paramiko.Transport(
+            (PARAMS.IP_SERVIDOR, PARAMS.PORTA_SERVIDOR)
+        )
+        transport.connect(None,
+                          username=PARAMS.LOGIN_SERVIDOR,
+                          password=PARAMS.SENHA_SERVIDOR)
+        server = paramiko.SFTPClient.from_transport(transport)
+        # server = ftplib.FTP()
+        # server.connect(PARAMS.IP_SERVIDOR, port=22)
+        # server.login(user=PARAMS.LOGIN_SERVIDOR,
+        #              passwd=PARAMS.SENHA_SERVIDOR)
+    except Exception as e:
         print("Erro na conexão (S)FTP! Cheque as credenciais e endereço "
               "no arquivo de parâmetros e tente novamente...")
+        print("Informações de erro: \n", e)
         exit(1)
 
     # Entre no diretório base
     cdRemoto(server, PARAMS.DIRETORIO_BASE_FTP)
     # Exibe diretório base
     print("Diretório FTP base:")
-    print(server.dir(), '\n')
+    # print(server.dir(), '\n')
+    print(server.listdir(), '\n')
 
     # Clona repositório local
     if not os.path.exists(LOCAL_REPO_PATH):
@@ -176,7 +204,7 @@ def main():
 
     # Envia arquivos inicialmente para o FTP.......
     print("Copiando estado inicial para servidor FTP...")
-    copiaPastaFTP(server, "")
+    copiaPastaFTP(server, LOCAL_REPO_PATH)
 
     # Entra em loop conferindo alterações (com  delay pré definido)
     print("Entrando em loop de conferência...")
