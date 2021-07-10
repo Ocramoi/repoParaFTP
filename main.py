@@ -148,7 +148,9 @@ def main():
     # Cria e testa conecão FTP
     try:
         server = ftplib.FTP()
-        testaConexao(server)
+        server.connect(PARAMS.IP_SERVIDOR, port=22)
+        server.login(user=PARAMS.LOGIN_SERVIDOR,
+                     passwd=PARAMS.SENHA_SERVIDOR)
     except Exception:
         print("Erro na conexão (S)FTP! Cheque as credenciais e endereço "
               "no arquivo de parâmetros e tente novamente...")
