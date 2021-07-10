@@ -15,6 +15,11 @@ LOCAL_REPO_PATH = "./REPO/"
 # Variáveis auxiliares
 PASTA_REMOTA_ATUAL = ''
 server = ftplib.FTP
+ARQS_IGNORAR = [
+    'main.py',
+    'PARAMS.py',
+    '.git'
+]
 
 
 def handleFimDePrograma(sig, frame):
@@ -41,7 +46,7 @@ def testaConexao(server: ftplib.FTP) -> None:
         server.getwelcome()
     except Exception:
         # Reconecta e reloga
-        server.connect(PARAMS.IP_SERVIDOR)
+        server.connect(PARAMS.IP_SERVIDOR, port=22)
         server.login(user=PARAMS.LOGIN_SERVIDOR,
                      passwd=PARAMS.SENHA_SERVIDOR)
         # Volta para última localização conhecida no servidor
@@ -65,7 +70,7 @@ def carregaDiferencas(repo: git.Repo,
         testaConexao(server)
 
         # Confere arquivo válido
-        if len(diff) <= 0:
+        if len(diff) <= 0 or diff in ARQS_IGNORAR:
             continue
 
         # Exibe arquivo a ser atualizado e salva seu path
@@ -112,7 +117,7 @@ def copiaPastaFTP(server: ftplib.FTP,
     # Para cada entrada no diretório atual
     for entry in os.listdir("./" + folder):
         # Confere que arquivo não seja hidden
-        if entry[0] == '.':
+        if entry in ARQS_IGNORAR:
             continue
         # Caso seja diretório
         if os.path.isdir(folder + entry):
@@ -142,9 +147,8 @@ def copiaPastaFTP(server: ftplib.FTP,
 def main():
     # Cria e testa conecão FTP
     try:
-        server = ftplib.FTP(host=PARAMS.IP_SERVIDOR,
-                            user=PARAMS.LOGIN_SERVIDOR,
-                            passwd=PARAMS.SENHA_SERVIDOR)
+        server = ftplib.FTP()
+        testaConexao(server)
     except Exception:
         print("Erro na conexão (S)FTP! Cheque as credenciais e endereço "
               "no arquivo de parâmetros e tente novamente...")
