@@ -4,7 +4,7 @@ Mantém cópia atualizada do repositório dentro do diretŕoio dado no servidor 
 
 ## Setup
 * Para que o projeto seja executado corretamente, garante a instalação e configuração do `Python 3.8.x` e `pip` (como [nesse tutorial](https://python.org.br/instalacao-windows/)).
-* Clone o diretório ou baixe os arquivos pelo [link](https://github.com/Ocramoi/repoParaFTP/releases/download/v1.1/release_1_1.zip).
+* Clone o diretório ou baixe os arquivos pelo [link](https://github.com/Ocramoi/repoParaFTP/releases/download/v1.2/release_1_2.zip).
 * Acesse o diretório clonado ou descompacte o arquivo baixado e acesse a pasta.
 
 ## Configuração
