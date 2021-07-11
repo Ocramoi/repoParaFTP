@@ -56,12 +56,8 @@ def testaConexao(server: paramiko.SFTPClient) -> None:
         transport.connect(None,
                           username=PARAMS.LOGIN_SERVIDOR,
                           assword=PARAMS.SENHA_SERVIDOR)
-        # server = paramiko.SFTPClient.from_transport(transport)
-        # server.connect(PARAMS.IP_SERVIDOR, port=22)
-        # server.login(user=PARAMS.LOGIN_SERVIDOR,
-        #              passwd=PARAMS.SENHA_SERVIDOR)
+        server = paramiko.SFTPClient.from_transport(transport)
         # Volta para última localização conhecida no servidor
-        server.cwd(PASTA_REMOTA_ATUAL)
         server.chdir(PASTA_REMOTA_ATUAL)
 
 
@@ -91,34 +87,32 @@ def carregaDiferencas(repo: git.Repo,
 
         # Entra no diretório correto criando pastas necessárias
         pathComps = diff.split('/')
+        tamSub = len(pathComps) - 1
         for i in range(0, len(pathComps) - 1):
             # Tenta criar subdiretório
             try:
-                # server.mkd(pathComps[i])
                 server.mkdir(pathComps[i])
             # Único erro válido na criação como pasta já existente
             except Exception:
                 pass
-                # if str(e).split()[0] != '550':
-                #     print("Erro na criação de pasta!")
-                #     print(e)
-                #     exit(1)
             # "Caminha" pelos subdiretórios
             cdRemoto(server, pathComps[i])
 
         # Caso arquivo exista, alteração foi modificação não remoção, assim
         # tranfere novo arquivo/versão
         if os.path.exists(pathArq):
-            # with open(pathArq, "rb") as arq:
-            #   server.storbinary("STOR " + pathComps[-1], arq)
             server.put(pathArq, pathComps[-1])
         # Caso contrário, deleta arquivo
         else:
-            # server.delete(pathComps[-1])
             server.remove(pathComps[-1])
 
+        if len(server.listdir()) == 0:
+            cdRemoto(server, '..')
+            server.rmdir(pathComps[tamSub - 1])
+            tamSub -= 1
+
         # Volta para diretório base
-        for i in range(0, len(pathComps) - 1):
+        for i in range(tamSub):
             cdRemoto(server, '..')
 
 
@@ -144,10 +138,6 @@ def copiaPastaFTP(server: paramiko.SFTPClient,
             # Apenas aceita erro caso já criado
             except Exception:
                 pass
-                # if str(e).split()[0] != '550':
-                #     print("Erro na criação de pasta!")
-                #     print(e)
-                #     exit(1)
             # Entra na pasta criada
             cdRemoto(server, entry)
             # Chama recursivamente para entradas do novo diretório
@@ -159,8 +149,6 @@ def copiaPastaFTP(server: paramiko.SFTPClient,
             # Escreve arquivo para servidor
             pathArq = folder + entry
             server.put(pathArq, entry)
-            # with open(pathArq, "rb") as arq:
-            #     server.storbinary("STOR " + entry, arq)
 
 
 def main():
@@ -173,10 +161,6 @@ def main():
                           username=PARAMS.LOGIN_SERVIDOR,
                           password=PARAMS.SENHA_SERVIDOR)
         server = paramiko.SFTPClient.from_transport(transport)
-        # server = ftplib.FTP()
-        # server.connect(PARAMS.IP_SERVIDOR, port=22)
-        # server.login(user=PARAMS.LOGIN_SERVIDOR,
-        #              passwd=PARAMS.SENHA_SERVIDOR)
     except Exception as e:
         print("Erro na conexão (S)FTP! Cheque as credenciais e endereço "
               "no arquivo de parâmetros e tente novamente...")
